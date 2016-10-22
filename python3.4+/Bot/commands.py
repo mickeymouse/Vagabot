@@ -1,6 +1,7 @@
 import discord
 import asyncio
 import pickle
+import random
 from KupoParser import parser as KParser
 from Bot.player import Player
 from Bot.poll import Poll
@@ -10,10 +11,19 @@ def say(message, client) :
     arg = message.content.split()
     arg.pop(0)
     arg = ' '.join(arg)
+    author = message.author
+    channel = message.channel
+    yield from client.delete_message(message)
     if arg != '' :
-        yield from client.send_message(message.channel, arg)
+        yield from client.send_message(channel, arg)
     else :
-        yield from client.send_message(message.channel, 'Utilisation !dire\/!say <message>')
+        yield from client.send_message(author, 'Que dois-je donc répéter ?')
+        msg = yield from client.wait_for_message(timeout=60.0, author=author)
+        if msg is None :
+            yield from client.send_message(author, 'Je n\'ai pas reçu de réponse veuillez recommencer en utilisant !say.')
+        else :
+            yield from client.send_message(channel, msg.content)
+        
 
 @asyncio.coroutine
 def printHello(message, client) :
@@ -93,6 +103,7 @@ def todo(message, client) :
         addTodoList(' '.join(query))
         yield from client.send_message(message.channel, 'Tâche ajoutée à la liste !')
 
+@asyncio.coroutine
 def removeTodo(message, client) :
     try :
         with open('Ressources/todo.pkl', 'rb') as f:
@@ -145,6 +156,21 @@ def authorCharInfo(message, client) :
     yield from printChar(message, client, message.author)
 
 @asyncio.coroutine
+def roll(message, client) :
+    query = message.content.split()
+    if len(query) < 2 :
+        yield from client.send_message(message.channel, message.author.name + ' jette un dé à 100 faces, résultat obtenu ' + str(random.randint(1,100)) + ' !')
+    else :
+        try :
+            b = int(query[1])
+            if b < 2 :
+                yield from client.send_message(message.channel, 'le nombre de faces du dé doit être supérieur ou égal à 2...')
+            else :
+                yield from client.send_message(message.channel, message.author.name + ' jette un dé à ' + query[1] + ' faces, résultat obtenu ' + str(random.randint(1,b)) + ' !')
+        except ValueError :
+            yield from client.send_message(message.channel, 'la deuxième valeur n\'est pas un entier...')
+
+@asyncio.coroutine
 def printHelp(message, client) :
     msg = 'Mes commandes sont les suivantes :\n'
     for (commandNames, handler, desc) in commandList :
@@ -175,5 +201,6 @@ commandList = [
     ('!sondage !poll', poll.setPoll, 'Affiche le sondage en cours si aucun argument n\'est utilisé, crée un sondage avec pour question l\'argument si précisé.'),
     ('!oui !yes', poll.yes, 'Vote oui sur le sondage en cours.'),
     ('!non !no', poll.no, 'Vote non sur le sondage en cours.'),
+    ('!roll !dé', roll, 'lance un dé à 100 faces si aucun paramètre n\'est précisé. !roll 42 lance un dé à 42 faces.'),
     ('!help', printHelp, 'Affiche la liste des commandes ainsi que leurs descriptions.')
 ]
