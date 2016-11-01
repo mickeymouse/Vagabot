@@ -5,7 +5,11 @@ import random
 from KupoParser import parser as KParser
 from Bot.player import Player
 from Bot.poll import Poll
+from Bot.setter import Setter
+from Bot.beer import Beer
+from Decorators import authorized
 
+@authorized.require_non_private
 @asyncio.coroutine
 def say(message, client) :
     arg = message.content.split()
@@ -13,16 +17,21 @@ def say(message, client) :
     arg = ' '.join(arg)
     author = message.author
     channel = message.channel
-    yield from client.delete_message(message)
+    me = message.server.me
+    if channel.permissions_for(me).manage_messages :
+        yield from client.delete_message(message)
     if arg != '' :
         yield from client.send_message(channel, arg)
     else :
-        yield from client.send_message(author, 'Que dois-je donc répéter ?')
-        msg = yield from client.wait_for_message(timeout=60.0, author=author)
-        if msg is None :
-            yield from client.send_message(author, 'Je n\'ai pas reçu de réponse veuillez recommencer en utilisant !say.')
-        else :
-            yield from client.send_message(channel, msg.content)
+        try :
+            yield from client.send_message(author, 'Que dois-je donc répéter ?')
+            msg = yield from client.wait_for_message(timeout=60.0, author=author)
+            if msg is None :
+                yield from client.send_message(author, 'Je n\'ai pas reçu de réponse veuillez recommencer en utilisant !say.')
+            else :
+                yield from client.send_message(channel, msg.content)
+        except Exception :
+            pass
         
 
 @asyncio.coroutine
@@ -158,24 +167,58 @@ def authorCharInfo(message, client) :
 @asyncio.coroutine
 def roll(message, client) :
     query = message.content.split()
+    nick = message.author.name
+    serv = message.server
+    channel = message.channel
+    if not channel.is_private :
+        if message.author.nick is not None :
+            nick = message.author.nick
+        if channel.permissions_for(serv.me).manage_messages :
+            yield from client.delete_message(message)
     if len(query) < 2 :
-        yield from client.send_message(message.channel, message.author.name + ' jette un dé à 100 faces, résultat obtenu ' + str(random.randint(1,100)) + ' !')
+        yield from client.send_message(channel, nick + ' jette un dé à 100 faces, résultat obtenu ' + str(random.randint(1,100)) + ' !')
     else :
         try :
             b = int(query[1])
             if b < 2 :
-                yield from client.send_message(message.channel, 'le nombre de faces du dé doit être supérieur ou égal à 2...')
+                yield from client.send_message(channel, 'le nombre de faces du dé doit être supérieur ou égal à 2...')
             else :
-                yield from client.send_message(message.channel, message.author.name + ' jette un dé à ' + query[1] + ' faces, résultat obtenu ' + str(random.randint(1,b)) + ' !')
+                yield from client.send_message(channel, nick + ' jette un dé à ' + str(min(b,2**64-1)) + ' faces, résultat obtenu ' + str(random.randint(1,min(b,2**64-1))) + ' !')
         except ValueError :
-            yield from client.send_message(message.channel, 'la deuxième valeur n\'est pas un entier...')
+            yield from client.send_message(channel, 'la deuxième valeur n\'est pas un entier...')
+
+@authorized.require_non_private
+@authorized.only_owner_top_role
+@asyncio.coroutine
+def set_announcement(message, client) :
+    setter = Setter()
+    yield from setter.set_announcement(message, client)
+
+@asyncio.coroutine
+def drink(message, client) :
+    beer = Beer()
+    yield from beer.drink(message, client)
 
 @asyncio.coroutine
 def printHelp(message, client) :
+    commands_per_message = 20
+    i = 0
     msg = 'Mes commandes sont les suivantes :\n'
     for (commandNames, handler, desc) in commandList :
         msg += commandNames + ' : ' + desc + '\n'
-    yield from client.send_message(message.author, msg)
+        i += 1
+        if i == 20 :
+            try :
+                yield from client.send_message(message.author, msg)
+            except Exception :
+                pass
+            msg = ''
+            i = 0
+    if i != 0 :
+        try :
+            yield from client.send_message(message.author, msg)
+        except Exception :
+            pass
     
 player = Player()
 poll = Poll()
@@ -190,6 +233,7 @@ commandList = [
     ('!whois', charInfo, 'Permet d\'afficher les informations d\'un personnage enregistré. Utilisation !whois <@pseudo>'),
     ('!whoami', authorCharInfo, 'Permet d\'afficher les informations concernant votre personnage enregistré.'),
     ('!café !coffee', player.coffee, 'Mise en écoute de **Le Café** de *Oldelaf et Monsieur D* sur le salon vocal.'),
+    ('!nosleep', player.nosleep, 'Mise en écoute de **No Sleep Till Brooklyn** de *The Beastie Boys* sur le salon vocal.'),
     ('!play', player.searchAndPlay, 'Ajout dans la playlist de la première vidéo trouvée sur YouTube. Usage : !play <nom de la musique à rechercher>.'),
     ('!skip', player.skip, 'Permet de passer la musique en cours d\'écoute dans la playlist.'),
     ('!titre', player.title, 'Permet d\'afficher le titre en cours d\'écoute.'),
@@ -201,6 +245,9 @@ commandList = [
     ('!sondage !poll', poll.setPoll, 'Affiche le sondage en cours si aucun argument n\'est utilisé, crée un sondage avec pour question l\'argument si précisé.'),
     ('!oui !yes', poll.yes, 'Vote oui sur le sondage en cours.'),
     ('!non !no', poll.no, 'Vote non sur le sondage en cours.'),
+    ('!avorter !abort', poll.abort, 'Force l\'arrêt du sondage en cours.'),
     ('!roll !dé', roll, 'lance un dé à 100 faces si aucun paramètre n\'est précisé. !roll 42 lance un dé à 42 faces.'),
+    ('!annonce', set_announcement, 'Modifie le salon utilisé pour faire les annonces du bot.'),
+    ('!stack', drink, 'Ajoute une stack à la personne utilisant cette commande. Nous vous rappelons que l\'abus d\'alcool est dangereux pour la santé !'),
     ('!help', printHelp, 'Affiche la liste des commandes ainsi que leurs descriptions.')
 ]

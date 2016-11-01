@@ -1,6 +1,7 @@
 import discord
 import asyncio
 from Bot import ytsearch
+from Decorators import authorized
 
 class Player :
     def __init__(self) :
@@ -13,12 +14,17 @@ class Player :
         #if not voiceChannel.permissions_for(client.user).connect :
             #client.send_message(channel, 'Impossible de se connecter sur ce salon vocal...')
             #return None
-        if (ytlink, voiceChannel) in self.playList :
+        me = channel.server.me #now I know who I am in da server !
+        perm = voiceChannel.permissions_for(me)
+        if not perm.connect :
+            yield from client.send_message(channel, "Il m'est impossible de me connecter sur ce salon vocal...")
+        elif (ytlink, voiceChannel) in self.playList :
             yield from client.send_message(channel, 'Cette musique est déjà dans la playlist veuillez patienter...')
         else :
             self.playList.append( (ytlink, voiceChannel) )
             yield from client.send_message(channel, 'La musique vient d\'être ajoutée !!!')
-    
+
+    @authorized.require_non_private    
     @asyncio.coroutine
     def play(self, client, server) :
         if len(self.playList) > 0 :
@@ -45,6 +51,7 @@ class Player :
         if self.voice is not None :
             yield from self.voice.disconnect()
 
+    @authorized.require_non_private
     @asyncio.coroutine
     def pause(self, message, client) :
         if self.ytPlayer is not None :
@@ -53,6 +60,7 @@ class Player :
         else :
             yield from cliend.send_message(message.channel, 'Aucune musique en cours d\'écoute.')
 
+    @authorized.require_non_private
     @asyncio.coroutine
     def resume(self, message, client) :
         if self.ytPlayer is not None :
@@ -61,6 +69,7 @@ class Player :
         else :
             yield from client.send_message(message.channel, 'Aucune musique en cours d\'écoute.')
 
+    @authorized.require_non_private
     @asyncio.coroutine
     def title(self, message, client) :
         if self.ytPlayer is None :
@@ -68,6 +77,7 @@ class Player :
         else :
             yield from client.send_message(message.channel, 'Écoute en cours : '+self.ytPlayer.title)
 
+    @authorized.require_non_private
     @asyncio.coroutine
     def skip(self, message, client) :
         if self.ytPlayer is not None :
@@ -75,7 +85,8 @@ class Player :
             yield from client.send_message(message.channel, 'La musique vient d\'être passée.')
         else :
             yield from client.send_message(message.channel, 'Il n\'y a actuellement aucune musique dans la playlist.')
-        
+
+    @authorized.require_non_private
     @asyncio.coroutine
     def coffee(self, message, client) :
         voiceChannel = message.author.voice.voice_channel
@@ -85,6 +96,17 @@ class Player :
         else :
             yield from client.send_message(message.channel, 'Il faut être connecté à un salon vocal pour pouvoir utiliser cette commande.')
 
+    @authorized.require_non_private
+    @asyncio.coroutine
+    def nosleep(self, message, client) :
+        voiceChannel = message.author.voice.voice_channel
+        if voiceChannel is not None :
+            yield from self.addToPlaylist('https://www.youtube.com/watch?v=07Y0cy-nvAg', voiceChannel, client, message.channel)
+            yield from self.play(client, message.server)
+        else :
+            yield from client.send_message(message.channel, 'Il faut être connecté à un salon vocal pour pouvoir utiliser cette commande.')
+
+    @authorized.require_non_private
     @asyncio.coroutine
     def stop(self, message, client) :
         if self.voice is None :
@@ -98,6 +120,7 @@ class Player :
             self.voice = None
             yield from client.send_message(message.channel, 'Déconnexion du salon vocal accomplie.')
 
+    @authorized.require_non_private
     @asyncio.coroutine
     def searchAndPlay(self, message, client) :
         ltmp = message.content.split()
